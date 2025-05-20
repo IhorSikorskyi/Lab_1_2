@@ -19,14 +19,22 @@ public class BookSellerAgent extends Agent {
 
     // Put agent initializations here
     protected void setup() {
-        // Create the catalogue
         catalogue = new Hashtable();
-
-        // Create and show the GUI
         myGui = new BookSellerGui(this);
         myGui.show();
 
-        // Register the book-selling service in the yellow pages
+        // Отримуємо аргументи
+        Object[] args = getArguments();
+        if (args != null && args.length >= 2) {
+            for (int i = 0; i < args.length - 1; i += 2) {
+                String title = (String) args[i];
+                int price = Integer.parseInt((String) args[i + 1]);
+                catalogue.put(title, price);
+                System.out.println(title + " inserted into catalogue. Price = " + price);
+            }
+        }
+
+        // Реєстрація сервісу
         DFAgentDescription dfd = new DFAgentDescription();
         dfd.setName(getAID());
         ServiceDescription sd = new ServiceDescription();
@@ -35,17 +43,14 @@ public class BookSellerAgent extends Agent {
         dfd.addServices(sd);
         try {
             DFService.register(this, dfd);
-        }
-        catch (FIPAException fe) {
+        } catch (FIPAException fe) {
             fe.printStackTrace();
         }
 
-        // Add the behaviour serving queries from buyer agents
         addBehaviour(new OfferRequestsServer());
-
-        // Add the behaviour serving purchase orders from buyer agents
         addBehaviour(new PurchaseOrdersServer());
     }
+
 
     // Put agent clean-up operations here
     protected void takeDown() {

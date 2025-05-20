@@ -52,7 +52,7 @@ class BookSellerGui extends JFrame {
         // the GUI using the button on the upper right corner
         addWindowListener(new	WindowAdapter() {
             public void windowClosing(WindowEvent e) {
-                myAgent.doDelete();
+                setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE); // Просто ховає вікно
             }
         } );
 
