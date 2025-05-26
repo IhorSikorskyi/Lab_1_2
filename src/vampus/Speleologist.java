@@ -23,17 +23,14 @@ public class Speleologist extends Agent {
     private int posY = 0;
     private int mapSize = 4;
 
-    // Множина точок смерті, отримана від Navigator
     private Set<String> deadCells = new HashSet<>();
 
     @Override
     protected void setup() {
         System.out.println(getLocalName() + " started.");
 
-        // Реєстрація в DF як speleologist-service
         registerInDF();
 
-        // Знайти Navigator та Environment
         addBehaviour(new OneShotBehaviour(this) {
             @Override
             public void action() {
@@ -45,7 +42,6 @@ public class Speleologist extends Agent {
             }
         });
 
-        // Основна поведінка — обробка запитів від Navigator
         addBehaviour(new CyclicBehaviour(this) {
             @Override
             public void action() {
@@ -110,16 +106,16 @@ public class Speleologist extends Agent {
     }
 
     private void handleMoveRequest(ACLMessage msg) {
-        String content = msg.getContent(); // "UP", "DOWN", "LEFT", "RIGHT"
+        String content = msg.getContent();
         int newX = posX;
         int newY = posY;
 
         switch (content.toUpperCase()) {
             case "DOWN":
-                newY += 1;  // вниз — збільшуємо Y
+                newY += 1;
                 break;
             case "UP":
-                newY -= 1;  // вверх — зменшуємо Y
+                newY -= 1;
                 break;
             case "LEFT":
                 newX -= 1;
@@ -137,7 +133,6 @@ public class Speleologist extends Agent {
                 return;
         }
 
-        // Перевірка кордонів карти
         if (newX < 0 || newY < 0 || newX >= mapSize || newY >= mapSize) {
             System.out.println("Speleologist: Move out of bounds attempted: (" + newX + "," + newY + ")");
             ACLMessage reply = msg.createReply();
@@ -148,7 +143,6 @@ public class Speleologist extends Agent {
             return;
         }
 
-        // Перевірка, чи не є нова позиція "мертвою клітинкою"
         String cellKey = newX + "," + newY;
         if (deadCells.contains(cellKey)) {
             System.out.println("Speleologist: Attempted move to dead cell: " + cellKey);
@@ -192,7 +186,6 @@ public class Speleologist extends Agent {
             return;
         }
 
-        // Розбираємо координати із запиту (наприклад, "x,y")
         String content = msg.getContent();
         String[] parts = content.split(",");
         if (parts.length != 2) {
@@ -217,14 +210,12 @@ public class Speleologist extends Agent {
             return;
         }
 
-        // Надіслати запит агенту Environment з координатами
         ACLMessage envReq = new ACLMessage(ACLMessage.REQUEST);
         envReq.addReceiver(environmentAgent);
         envReq.setConversationId("env-request");
         envReq.setContent(queryX + "," + queryY);
         send(envReq);
 
-        // Очікуємо відповідь від Environment
         MessageTemplate mt = MessageTemplate.and(
                 MessageTemplate.MatchSender(environmentAgent),
                 MessageTemplate.MatchConversationId("env-request"));
@@ -289,7 +280,6 @@ public class Speleologist extends Agent {
         send(reply);
     }
 
-    // Обробка команди скинути шлях (наприклад, після смерті)
     private void handleResetPath(ACLMessage msg) {
         resetState();
         ACLMessage reply = msg.createReply();
@@ -300,9 +290,8 @@ public class Speleologist extends Agent {
         System.out.println("Speleologist: Path reset on command.");
     }
 
-    // Обробка повідомлення з оновленням deadCells від Navigator
     private void handleDeadCells(ACLMessage msg) {
-        String content = msg.getContent(); // формат: "x1,y1;x2,y2;..."
+        String content = msg.getContent();
         deadCells.clear();
         if (!content.isEmpty()) {
             String[] cells = content.split(";");
@@ -313,7 +302,6 @@ public class Speleologist extends Agent {
         System.out.println("Speleologist: Dead cells updated: " + deadCells);
     }
 
-    // Метод для скидання внутрішнього стану (позиції і deadCells)
     public void resetState() {
         posX = 0;
         posY = 0;

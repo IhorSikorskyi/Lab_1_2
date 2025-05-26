@@ -28,8 +28,8 @@ public class Environment extends Agent {
         dfd.setName(getAID());
 
         ServiceDescription sd = new ServiceDescription();
-        sd.setType("environment-agent");  // Тип сервісу, можна будь-який описовий текст
-        sd.setName("environment");        // Ім'я сервісу для пошуку
+        sd.setType("environment-agent");
+        sd.setName("environment");
         dfd.addServices(sd);
 
         try {
@@ -43,7 +43,6 @@ public class Environment extends Agent {
     }
 
     protected void takeDown() {
-        // При завершенні роботи зняти реєстрацію
         try {
             DFService.deregister(this);
             System.out.println(getLocalName() + ": знятий з реєстрації DF.");

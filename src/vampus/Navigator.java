@@ -39,8 +39,6 @@ public class Navigator extends Agent {
         speleologistAgent = new AID[] { new AID("speleologist", AID.ISLOCALNAME) };
         currentAgentPosition.add(new Position(0, 0));
 
-        updatePositionAndEnvironment();
-
         addBehaviour(new TickerBehaviour(this, 1000) {
             protected void onTick() {
                 onStep();
@@ -53,7 +51,7 @@ public class Navigator extends Agent {
                 ACLMessage msg = receive(MessageTemplate.MatchConversationId("terminate"));
                 if (msg != null) {
                     System.out.println(getLocalName() + ": отримано команду завершення.");
-                    doDelete(); // завершити агента
+                    doDelete();
                 } else {
                     block();
                 }
@@ -74,7 +72,6 @@ public class Navigator extends Agent {
             stepBack();
             return;
         }
-
         if (environmentState.contains("Vampus") || environmentState.contains("Pit")) {
             System.out.println("Died at: (" + currentPos.x + ", " + currentPos.y + ")");
             deadCells.add(currentPos);
@@ -82,7 +79,6 @@ public class Navigator extends Agent {
             restart();
             return;
         }
-
         Position next = getNextSpiralMove(currentPos);
         if (next != null) {
             moveTo(next);
@@ -96,12 +92,10 @@ public class Navigator extends Agent {
         ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
         msg.addReceiver(speleologistAgent[0]);
         msg.setConversationId("dead-cells");
-        // Формуємо рядок у форматі "x1,y1;x2,y2;..."
         StringBuilder sb = new StringBuilder();
         for (Position p : deadCells) {
             sb.append(p.x).append(",").append(p.y).append(";");
         }
-        // Видаляємо останній ";" якщо потрібно
         if (sb.length() > 0) sb.setLength(sb.length() - 1);
 
         msg.setContent(sb.toString());
@@ -111,10 +105,10 @@ public class Navigator extends Agent {
 
     private Position getNextSpiralMove(Position current) {
         int[][] directions = {
-                {1, 0},  // right
-                {0, 1},  // down
-                {-1, 0}, // left
-                {0, -1}  // up
+                {1, 0},
+                {0, 1},
+                {-1, 0},
+                {0, -1}
         };
 
         Position prevPos = null;
@@ -282,14 +276,9 @@ public class Navigator extends Agent {
         return currentAgentPosition.get(currentAgentPosition.size() - 1);
     }
 
-    private void updatePositionAndEnvironment() {
-        // Тут можна ініціалізувати початковий стан, якщо потрібно
-    }
-
     private void stepBack() {
         System.out.println("Navigator: Returning to (0,0)...");
 
-        // Ітеруємося з кінця маршруту назад до початку
         for (int i = currentAgentPosition.size() - 1; i > 0; i--) {
             Position from = currentAgentPosition.get(i);
             Position to = currentAgentPosition.get(i - 1);
@@ -336,10 +325,8 @@ public class Navigator extends Agent {
         terminateMsg.setConversationId("terminate");
         terminateMsg.setContent("Shutdown");
 
-        // Надсилаємо собі (Navigator)
         terminateMsg.addReceiver(getAID());
 
-        // Надсилаємо speleologistAgent, якщо треба
         for (AID aid : speleologistAgent) {
             terminateMsg.addReceiver(aid);
         }
