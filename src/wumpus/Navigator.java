@@ -122,10 +122,8 @@ public class Navigator extends Agent {
 
         for (int i = 0; i < 4; i++) {
             int dirIndex = (directionIndex + i) % 4;
-//            int nx = current.x + directions[dirIndex][0];
-//            int ny = current.y + directions[dirIndex][1];
-             int nx = current.x + directions[dirIndex][1];
-             int ny = current.y + directions[dirIndex][0];
+             int nx = current.x + directions[dirIndex][0];
+             int ny = current.y + directions[dirIndex][1];
             Position nextPos = new Position(nx, ny);
 
             System.out.println("Trying direction " + dirIndex + ": (" + nx + "," + ny + ")");
@@ -137,8 +135,6 @@ public class Navigator extends Agent {
         }
         return null;
     }
-
-    // In Navigator.java - replace the moveTo() method with this fixed version:
 
     private void moveTo(Position target) {
         Position current = currentAgentPosition.get(currentAgentPosition.size() - 1);
@@ -181,8 +177,6 @@ public class Navigator extends Agent {
                 System.out.println("No environment response at new position.");
             }
 
-            // FIXED: Check for Wumpus in the environment message
-            // The Speleologist converts "Wumpus" to phrases like "I see glowing eyes in the dark"
             if (newEnvState.toLowerCase().contains("glowing eyes") ||
                     newEnvState.toLowerCase().contains("wumpus") ||
                     newEnvState.toLowerCase().contains("dark eyes") ||
@@ -220,7 +214,6 @@ public class Navigator extends Agent {
                 }
 
                 System.out.println("Navigator: Shot successful! Refreshing environment...");
-                // Refresh environment state after successful shot
                 ACLMessage refresh = new ACLMessage(ACLMessage.REQUEST);
                 refresh.addReceiver(speleologistAgent[0]);
                 refresh.setConversationId("env-request");
@@ -240,7 +233,6 @@ public class Navigator extends Agent {
                 }
             }
 
-            // Check for Pit after Wumpus handling
             if (newEnvState.toLowerCase().contains("pit") ||
                     newEnvState.toLowerCase().contains("wind") ||
                     newEnvState.toLowerCase().contains("breeze")) {
