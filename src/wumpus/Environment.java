@@ -1,4 +1,4 @@
-package vampus;
+package wumpus;
 
 import jade.core.Agent;
 import jade.core.behaviours.CyclicBehaviour;
@@ -23,7 +23,6 @@ public class Environment extends Agent {
         buildEnvironment();
         fillEnvironment();
 
-        // Реєстрація в DF під ім'ям "environment"
         DFAgentDescription dfd = new DFAgentDescription();
         dfd.setName(getAID());
 
@@ -34,22 +33,21 @@ public class Environment extends Agent {
 
         try {
             DFService.register(this, dfd);
-            System.out.println(getLocalName() + ": зареєстрований в DF як 'environment'.");
+            System.out.println(getLocalName() + ":Registered in DF as 'environment'.");
         } catch (FIPAException fe) {
             fe.printStackTrace();
         }
-
         addBehaviour(new HandleRequestsBehaviour());
     }
 
     protected void takeDown() {
         try {
             DFService.deregister(this);
-            System.out.println(getLocalName() + ": знятий з реєстрації DF.");
+            System.out.println(getLocalName() + ":deregistered DF.");
         } catch (FIPAException fe) {
             fe.printStackTrace();
         }
-        System.out.println(getLocalName() + ": завершується.");
+        System.out.println(getLocalName() + ":stoped.");
     }
 
     private void buildEnvironment() {
@@ -59,7 +57,7 @@ public class Environment extends Agent {
                 environmentGrid.put(key(x, y), new HashSet<>());
             }
         }
-        System.out.println(getLocalName() + ": середовище побудовано (4x4).");
+        System.out.println(getLocalName() + ": environment is built (4x4).");
     }
 
     private void fillEnvironment() {
@@ -73,7 +71,7 @@ public class Environment extends Agent {
         addState(2, 1, "Breeze");
         addState(3, 1, "Breeze");
 
-        addState(0, 2, "Vampus");
+        addState(0, 2, "Wumpus");
         addState(1, 2, "Breeze");
         addState(1, 2, "Stench");
         addState(1, 2, "Gold");
@@ -85,9 +83,8 @@ public class Environment extends Agent {
         addState(2, 3, "Breeze");
         addState(3, 3, "Pit");
 
-        System.out.println(getLocalName() + ": середовище заповнено станами.");
+        System.out.println(getLocalName() + ": the environment is filled with states.");
     }
-
 
     private void addState(int x, int y, String state) {
         String k = key(x, y);
@@ -113,20 +110,21 @@ public class Environment extends Agent {
 
                 switch (convId) {
                     case "env-request":
-                        // content - це координати клітинки у вигляді рядка, напр. "3,5"
                         Set<String> states = environmentGrid.get(content);
                         reply.setPerformative(ACLMessage.INFORM);
                         if (states == null || states.isEmpty()) {
-                            reply.setContent("Coordinates: " + content + "\nStates: empty");
+                            reply.setContent("Coordinates: " + content + "\nStates: Normal");
                         } else {
                             reply.setContent("Coordinates: " + content + "\nStates: " + String.join(",", states));
                         }
                         myAgent.send(reply);
-                        System.out.println(getLocalName() + ": відправив стан клітинки [" + content + "] => " + reply.getContent());
+                        System.out.println(getLocalName() + ":\nStates: [" + content + "] => " + reply.getContent());
                         break;
-
                     case "take-gold":
                         handleTakeGold(content, reply);
+                        break;
+                    case "Wumpus":
+                        handleWumpusDeath(content, reply);
                         break;
                     default:
                         reply.setPerformative(ACLMessage.NOT_UNDERSTOOD);
@@ -145,7 +143,7 @@ public class Environment extends Agent {
         if (states != null && states.contains("Gold")) {
             states.remove("Gold");
             reply.setPerformative(ACLMessage.INFORM);
-            reply.setConversationId("take-gold-response");  // ВАЖЛИВО: conversationId для відповіді
+            reply.setConversationId("take-gold-response");
             reply.setContent("Gold taken at " + content);
             System.out.println(getLocalName() + ": Gold taken at " + content);
         } else {
@@ -154,5 +152,47 @@ public class Environment extends Agent {
             reply.setContent("No gold at " + content);
             System.out.println(getLocalName() + ": No gold to take at " + content);
         }
+        send(reply);
     }
+
+    private void handleWumpusDeath(String content, ACLMessage reply) {
+        Set<String> states = environmentGrid.get(content);
+        if (states != null && states.contains("Wumpus")) {
+            states.remove("Wumpus");
+            states.remove("Stench");
+
+            String[] parts = content.split(",");
+            int x = Integer.parseInt(parts[0]);
+            int y = Integer.parseInt(parts[1]);
+
+            int[][] directions = {
+                    {-1, 0}, {1, 0}, // Ліворуч, праворуч
+                    {0, -1}, {0, 1}  // Вгору, вниз
+            };
+
+            for (int[] dir : directions) {
+                int nx = x + dir[0];
+                int ny = y + dir[1];
+
+                String neighborKey = key(nx, ny);
+                Set<String> neighborStates = environmentGrid.get(neighborKey);
+
+                if (neighborStates != null) {
+                    neighborStates.remove("Stench");
+                }
+            }
+
+            reply.setPerformative(ACLMessage.INFORM);
+            reply.setConversationId("wumpus-dead-response");
+            reply.setContent("Wumpus dead at " + content);
+            System.out.println(getLocalName() + ": Wumpus dead at " + content + ". Stench cleared.");
+        } else {
+            reply.setPerformative(ACLMessage.FAILURE);
+            reply.setConversationId("wumpus-dead-response");
+            reply.setContent("No wumpus at " + content);
+            System.out.println(getLocalName() + ": No Wumpus at " + content);
+        }
+        send(reply);
+    }
+
 }

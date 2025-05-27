@@ -1,4 +1,4 @@
-package vampus;
+package wumpus;
 
 import jade.core.Agent;
 import jade.core.AID;
@@ -13,6 +13,7 @@ import jade.domain.FIPAException;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Random;
 
 public class Speleologist extends Agent {
 
@@ -22,8 +23,10 @@ public class Speleologist extends Agent {
     private int posX = 0;
     private int posY = 0;
     private int mapSize = 4;
+    private int arrow = 1;
 
     private Set<String> deadCells = new HashSet<>();
+    private Random random = new Random();
 
     @Override
     protected void setup() {
@@ -56,27 +59,24 @@ public class Speleologist extends Agent {
                         case "move-request":
                             handleMoveRequest(msg);
                             break;
-
                         case "get-position":
                             handleGetPositionRequest(msg);
                             break;
-
                         case "env-request":
                             handleEnvRequest(msg);
                             break;
-
-                        case "take-gold":
-                            handleTakeGold(msg);
+                        case "shoot-request":
+                            shoot(msg);
                             break;
-
+                        case "take-gold":
+                            handleGrab(msg);
+                            break;
                         case "reset-path":
                             handleResetPath(msg);
                             break;
-
                         case "dead-cells":
                             handleDeadCells(msg);
                             break;
-
                         default:
                             System.out.println("Speleologist: Unknown conversationId: " + convId);
                             break;
@@ -225,21 +225,24 @@ public class Speleologist extends Agent {
         ACLMessage reply = msg.createReply();
 
         if (envResp != null) {
+            String envContent = envResp.getContent();
+            String responseMessage = createEnvMessage(envContent);
+
             reply.setPerformative(ACLMessage.INFORM);
             reply.setConversationId("env-request");
-            reply.setContent(envResp.getContent());
-            System.out.println("Speleologist: Env state at (" + queryX + "," + queryY + "): " + envResp.getContent());
+            reply.setContent(responseMessage);
+
+            System.out.println("Speleologist: " + responseMessage);
         } else {
             reply.setPerformative(ACLMessage.FAILURE);
             reply.setConversationId("env-request");
             reply.setContent("No response from Environment");
             System.out.println("Speleologist: No response from Environment.");
         }
-
         send(reply);
     }
 
-    private void handleTakeGold(ACLMessage msg) {
+    private void handleGrab(ACLMessage msg) {
         if (environmentAgent == null) {
             System.out.println("Speleologist: Environment agent not available for take-gold.");
             ACLMessage reply = msg.createReply();
@@ -250,12 +253,12 @@ public class Speleologist extends Agent {
             return;
         }
 
-        ACLMessage takeGoldMsg = new ACLMessage(ACLMessage.REQUEST);
-        takeGoldMsg.addReceiver(environmentAgent);
-        takeGoldMsg.setConversationId("take-gold");
-        takeGoldMsg.setContent(posX + "," + posY);
+        ACLMessage GrabMsg = new ACLMessage(ACLMessage.REQUEST);
+        GrabMsg.addReceiver(environmentAgent);
+        GrabMsg.setConversationId("take-gold");
+        GrabMsg.setContent(posX + "," + posY);
 
-        send(takeGoldMsg);
+        send(GrabMsg);
 
         MessageTemplate mt = MessageTemplate.and(
                 MessageTemplate.MatchSender(environmentAgent),
@@ -276,7 +279,6 @@ public class Speleologist extends Agent {
             reply.setContent("No response from Environment");
             System.out.println("Speleologist: No response from Environment on take-gold.");
         }
-
         send(reply);
     }
 
@@ -305,7 +307,6 @@ public class Speleologist extends Agent {
     public void resetState() {
         posX = 0;
         posY = 0;
-        deadCells.clear();  // якщо треба, можна не чистити, залежно від логіки
         System.out.println("Speleologist: State reset after death.");
     }
 
@@ -317,5 +318,91 @@ public class Speleologist extends Agent {
             fe.printStackTrace();
         }
         System.out.println(getLocalName() + " terminating.");
+    }
+
+    public void shoot(ACLMessage msg) {
+        if (msg!= null) {
+            System.out.println("Received message: " + msg.getContent());
+        } else {
+            System.out.println("Message not received (Wumpus).");
+        }
+        if (msg != null)
+        {
+            if (arrow <= 0) {
+                System.out.println("Speleologist: No arrows left to shoot.");
+                return;
+            }
+
+            arrow--;
+            System.out.println("Speleologist: Trying to kill Wumpus...");
+
+            boolean hit = random.nextBoolean();
+
+            if (hit) {
+                System.out.println("Speleologist: Wumpus hit! Sending death notification to Environment.");
+
+                ACLMessage msg_t = new ACLMessage(ACLMessage.INFORM);
+                msg_t.addReceiver(environmentAgent);
+                msg_t.setConversationId("Wumpus");
+                msg_t.setContent(posX + "," + posY);
+                send(msg_t);
+
+                System.out.println("Speleologist: Wumpus hit at (" + posX + "," + posY + ")");
+
+                ACLMessage reply = msg.createReply();
+                reply.setPerformative(ACLMessage.INFORM);
+                reply.setContent("Killed");
+                send(reply);
+
+                String responseMessage = createEnvMessage("Wumpus death");
+                System.out.println(responseMessage);
+            } else {
+                System.out.println("Speleologist: Missed the shot! Speleologist died.");
+
+                resetState();
+
+                ACLMessage deathMsg = new ACLMessage(ACLMessage.INFORM);
+                deathMsg.addReceiver(environmentAgent);
+                deathMsg.setConversationId("speleologist-dead");
+                deathMsg.setContent("Speleologist died by missing Wumpus shot.");
+                send(deathMsg);
+            }
+        }
+    }
+
+    private String createEnvMessage(String envResponse) {
+        String[] lines = envResponse.split("\n");
+        String statesLine = null;
+
+        for (String line : lines) {
+            if (line.toLowerCase().startsWith("states:")) {
+                statesLine = line.substring(7).trim();  // Вирізаємо "States:" і пробіли
+                break;
+            }
+        }
+        if (statesLine == null || statesLine.isEmpty()) {
+            return "No environmental signs detected.";
+        }
+
+        String[] signs = statesLine.split(",");
+        StringBuilder message = new StringBuilder();
+
+        for (String sign : signs) {
+            sign = sign.trim().toLowerCase();
+            String capitalizedSign = capitalizeFirstLetter(sign);
+            String phrase = Dictionary.getRandomPhrase(capitalizedSign);
+            if (!phrase.isEmpty()) {
+                if (message.length() > 0) {
+                    message.append(". ");
+                }
+                message.append(phrase);
+            }
+        }
+        return message.toString();
+    }
+
+    private String capitalizeFirstLetter(String input) {
+        if (input == null || input.isEmpty()) return input;
+        return input.substring(0, 1).toUpperCase() + input.substring(1);
     }
 }

@@ -1,4 +1,4 @@
-package vampus;
+package wumpus;
 
 import jade.core.Agent;
 import jade.core.AID;
@@ -31,7 +31,7 @@ public class Navigator extends Agent {
         dfd.addServices(sd);
         try {
             DFService.register(this, dfd);
-            System.out.println(getLocalName() + ": Registered in DF as navigator-service.");
+            System.out.println(getLocalName() + ": Registered in DF as navigator.");
         } catch (FIPAException fe) {
             fe.printStackTrace();
         }
@@ -57,7 +57,6 @@ public class Navigator extends Agent {
                 }
             }
         });
-
     }
 
     protected void onStep() {
@@ -72,12 +71,31 @@ public class Navigator extends Agent {
             stepBack();
             return;
         }
-        if (environmentState.contains("Vampus") || environmentState.contains("Pit")) {
-            System.out.println("Died at: (" + currentPos.x + ", " + currentPos.y + ")");
-            deadCells.add(currentPos);
-            sendDeadCellsToSpeleologist();
-            restart();
-            return;
+        if (environmentState.contains("Wumpus") || environmentState.contains("Pit")) {
+            if(environmentState.contains("Wumpus")) {
+                ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
+                msg.setConversationId("shoot-request");
+                msg.setContent("shoot-request");
+                msg.addReceiver(speleologistAgent[0]);
+                send(msg);
+                System.out.println("Message shoot-arrow sent.");
+                ACLMessage msg_t = blockingReceive(
+                        MessageTemplate.MatchConversationId("continue-movement"), 10000);
+                if (msg_t == null) {
+                    System.out.println("Died at: (" + currentPos.x + ", " + currentPos.y + ")");
+                    deadCells.add(currentPos);
+                    sendDeadCellsToSpeleologist();
+                    restart();
+                    return;
+                }
+            }
+            if(environmentState.contains("Pit")){
+                System.out.println("Died at: (" + currentPos.x + ", " + currentPos.y + ")");
+                deadCells.add(currentPos);
+                sendDeadCellsToSpeleologist();
+                restart();
+                return;
+            }
         }
         Position next = getNextSpiralMove(currentPos);
         if (next != null) {
@@ -130,6 +148,8 @@ public class Navigator extends Agent {
             int dirIndex = (directionIndex + i) % 4;
             int nx = current.x + directions[dirIndex][0];
             int ny = current.y + directions[dirIndex][1];
+            // int nx = current.x + directions[dirIndex][0];
+            // int ny = current.y + directions[dirIndex][1];
             Position nextPos = new Position(nx, ny);
 
             System.out.println("Trying direction " + dirIndex + ": (" + nx + "," + ny + ")");
@@ -139,7 +159,6 @@ public class Navigator extends Agent {
                 return nextPos;
             }
         }
-
         return null;
     }
 
@@ -184,11 +203,46 @@ public class Navigator extends Agent {
                 System.out.println("No environment response at new position.");
             }
 
-            if (newEnvState.contains("Vampus") || newEnvState.contains("Pit")) {
-                System.out.println("Died at: (" + newPos.x + ", " + newPos.y + ")");
-                deadCells.add(newPos);
-                sendDeadCellsToSpeleologist();
-                restart();
+            if (newEnvState.contains("Wumpus") || newEnvState.contains("Pit")) {
+                if(newEnvState.contains("Wumpus")) {
+                    ACLMessage msg_s = new ACLMessage(ACLMessage.REQUEST);
+                    msg_s.setConversationId("shoot-request");
+                    msg_s.setContent("shoot-request");
+                    msg_s.addReceiver(speleologistAgent[0]);
+                    send(msg_s);
+                    System.out.println("Message shoot-request sent.");
+                    ACLMessage msg_t = blockingReceive(
+                            MessageTemplate.MatchConversationId("shoot-request"), 10000);
+                    if (msg_t == null) {
+                        System.out.println("No reply after shooting. Died at: (" + newPos.x + ", " + newPos.y + ")");
+                        deadCells.add(newPos);
+                        sendDeadCellsToSpeleologist();
+                        restart();
+                    } else {
+                        ACLMessage refresh = new ACLMessage(ACLMessage.REQUEST);
+                        refresh.addReceiver(speleologistAgent[0]);
+                        refresh.setConversationId("env-request");
+                        refresh.setContent(newPos.x + "," + newPos.y);
+                        send(refresh);
+
+                        ACLMessage freshReply = blockingReceive(MessageTemplate.and(
+                                MessageTemplate.MatchPerformative(ACLMessage.INFORM),
+                                MessageTemplate.MatchConversationId("env-request")
+                        ), 3000);
+
+                        if (freshReply != null) {
+                            environmentState = freshReply.getContent();
+                            System.out.println("Navigator: Refreshed env state: " + environmentState);
+                        } else {
+                            environmentState = "";
+                        }
+
+                        currentAgentPosition.add(newPos);
+                        System.out.println("Wumpus shot confirmed. Continuing...");
+                        System.out.println("Navigator: Step " + direction + " to (" + newPos.x + ", " + newPos.y + ")");
+                    }
+
+                }
             } else {
                 currentAgentPosition.add(newPos);
                 environmentState = newEnvState;
@@ -212,7 +266,6 @@ public class Navigator extends Agent {
         resetMsg.setConversationId("reset-path");
         resetMsg.setContent("reset");
         send(resetMsg);
-
     }
 
     private void takeGold() {
@@ -270,7 +323,6 @@ public class Navigator extends Agent {
             if (x < 0 || y < 0 || x >= mapSize || y >= mapSize) {
                 return currentAgentPosition.get(currentAgentPosition.size() - 1);
             }
-
             return new Position(x, y);
         }
         return currentAgentPosition.get(currentAgentPosition.size() - 1);
@@ -341,4 +393,3 @@ public class Navigator extends Agent {
         return "";
     }
 }
-
