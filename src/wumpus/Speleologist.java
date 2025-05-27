@@ -59,24 +59,31 @@ public class Speleologist extends Agent {
                         case "move-request":
                             handleMoveRequest(msg);
                             break;
+
                         case "get-position":
                             handleGetPositionRequest(msg);
                             break;
+
                         case "env-request":
                             handleEnvRequest(msg);
                             break;
+
                         case "shoot-request":
                             shoot(msg);
                             break;
+
                         case "take-gold":
                             handleGrab(msg);
                             break;
+
                         case "reset-path":
                             handleResetPath(msg);
                             break;
+
                         case "dead-cells":
                             handleDeadCells(msg);
                             break;
+
                         default:
                             System.out.println("Speleologist: Unknown conversationId: " + convId);
                             break;
@@ -225,7 +232,7 @@ public class Speleologist extends Agent {
         ACLMessage reply = msg.createReply();
 
         if (envResp != null) {
-            String envContent = envResp.getContent();
+            String envContent = envResp.getContent(); // наприклад: "draft,stench"
             String responseMessage = createEnvMessage(envContent);
 
             reply.setPerformative(ACLMessage.INFORM);
@@ -279,6 +286,7 @@ public class Speleologist extends Agent {
             reply.setContent("No response from Environment");
             System.out.println("Speleologist: No response from Environment on take-gold.");
         }
+
         send(reply);
     }
 
@@ -321,15 +329,16 @@ public class Speleologist extends Agent {
     }
 
     public void shoot(ACLMessage msg) {
-        if (msg!= null) {
-            System.out.println("Received message: " + msg.getContent());
-        } else {
-            System.out.println("Message not received (Wumpus).");
-        }
-        if (msg != null)
-        {
+        if (msg != null) {
             if (arrow <= 0) {
                 System.out.println("Speleologist: No arrows left to shoot.");
+
+                // Send failure reply to Navigator
+                ACLMessage reply = msg.createReply();
+                reply.setPerformative(ACLMessage.FAILURE);
+                reply.setConversationId("shoot-request");
+                reply.setContent("No arrows left");
+                send(reply);
                 return;
             }
 
@@ -341,6 +350,7 @@ public class Speleologist extends Agent {
             if (hit) {
                 System.out.println("Speleologist: Wumpus hit! Sending death notification to Environment.");
 
+                // Notify Environment about Wumpus death
                 ACLMessage msg_t = new ACLMessage(ACLMessage.INFORM);
                 msg_t.addReceiver(environmentAgent);
                 msg_t.setConversationId("Wumpus");
@@ -349,8 +359,10 @@ public class Speleologist extends Agent {
 
                 System.out.println("Speleologist: Wumpus hit at (" + posX + "," + posY + ")");
 
+                // Send success reply to Navigator
                 ACLMessage reply = msg.createReply();
                 reply.setPerformative(ACLMessage.INFORM);
+                reply.setConversationId("shoot-request");
                 reply.setContent("Killed");
                 send(reply);
 
@@ -359,8 +371,16 @@ public class Speleologist extends Agent {
             } else {
                 System.out.println("Speleologist: Missed the shot! Speleologist died.");
 
+                // Send failure reply to Navigator before dying
+                ACLMessage reply = msg.createReply();
+                reply.setPerformative(ACLMessage.FAILURE);
+                reply.setConversationId("shoot-request");
+                reply.setContent("Missed shot - died");
+                send(reply);
+
                 resetState();
 
+                // Notify Environment about speleologist death
                 ACLMessage deathMsg = new ACLMessage(ACLMessage.INFORM);
                 deathMsg.addReceiver(environmentAgent);
                 deathMsg.setConversationId("speleologist-dead");
@@ -380,6 +400,7 @@ public class Speleologist extends Agent {
                 break;
             }
         }
+
         if (statesLine == null || statesLine.isEmpty()) {
             return "No environmental signs detected.";
         }
@@ -398,6 +419,7 @@ public class Speleologist extends Agent {
                 message.append(phrase);
             }
         }
+
         return message.toString();
     }
 

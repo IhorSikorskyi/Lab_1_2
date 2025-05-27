@@ -65,38 +65,14 @@ public class Navigator extends Agent {
         Position currentPos = currentAgentPosition.get(currentAgentPosition.size() - 1);
         visitedCells.add(currentPos);
 
+        // Only check for Gold here - dangers are handled in moveTo()
         if (environmentState.contains("Gold")) {
             System.out.println("Gold found!");
             takeGold();
             stepBack();
             return;
         }
-        if (environmentState.contains("Wumpus") || environmentState.contains("Pit")) {
-            if(environmentState.contains("Wumpus")) {
-                ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
-                msg.setConversationId("shoot-request");
-                msg.setContent("shoot-request");
-                msg.addReceiver(speleologistAgent[0]);
-                send(msg);
-                System.out.println("Message shoot-arrow sent.");
-                ACLMessage msg_t = blockingReceive(
-                        MessageTemplate.MatchConversationId("continue-movement"), 10000);
-                if (msg_t == null) {
-                    System.out.println("Died at: (" + currentPos.x + ", " + currentPos.y + ")");
-                    deadCells.add(currentPos);
-                    sendDeadCellsToSpeleologist();
-                    restart();
-                    return;
-                }
-            }
-            if(environmentState.contains("Pit")){
-                System.out.println("Died at: (" + currentPos.x + ", " + currentPos.y + ")");
-                deadCells.add(currentPos);
-                sendDeadCellsToSpeleologist();
-                restart();
-                return;
-            }
-        }
+
         Position next = getNextSpiralMove(currentPos);
         if (next != null) {
             moveTo(next);
@@ -146,10 +122,10 @@ public class Navigator extends Agent {
 
         for (int i = 0; i < 4; i++) {
             int dirIndex = (directionIndex + i) % 4;
-            int nx = current.x + directions[dirIndex][0];
-            int ny = current.y + directions[dirIndex][1];
-            // int nx = current.x + directions[dirIndex][0];
-            // int ny = current.y + directions[dirIndex][1];
+//            int nx = current.x + directions[dirIndex][0];
+//            int ny = current.y + directions[dirIndex][1];
+             int nx = current.x + directions[dirIndex][1];
+             int ny = current.y + directions[dirIndex][0];
             Position nextPos = new Position(nx, ny);
 
             System.out.println("Trying direction " + dirIndex + ": (" + nx + "," + ny + ")");
@@ -161,6 +137,8 @@ public class Navigator extends Agent {
         }
         return null;
     }
+
+    // In Navigator.java - replace the moveTo() method with this fixed version:
 
     private void moveTo(Position target) {
         Position current = currentAgentPosition.get(currentAgentPosition.size() - 1);
@@ -203,51 +181,81 @@ public class Navigator extends Agent {
                 System.out.println("No environment response at new position.");
             }
 
-            if (newEnvState.contains("Wumpus") || newEnvState.contains("Pit")) {
-                if(newEnvState.contains("Wumpus")) {
-                    ACLMessage msg_s = new ACLMessage(ACLMessage.REQUEST);
-                    msg_s.setConversationId("shoot-request");
-                    msg_s.setContent("shoot-request");
-                    msg_s.addReceiver(speleologistAgent[0]);
-                    send(msg_s);
-                    System.out.println("Message shoot-request sent.");
-                    ACLMessage msg_t = blockingReceive(
-                            MessageTemplate.MatchConversationId("shoot-request"), 10000);
-                    if (msg_t == null) {
-                        System.out.println("No reply after shooting. Died at: (" + newPos.x + ", " + newPos.y + ")");
-                        deadCells.add(newPos);
-                        sendDeadCellsToSpeleologist();
-                        restart();
-                    } else {
-                        ACLMessage refresh = new ACLMessage(ACLMessage.REQUEST);
-                        refresh.addReceiver(speleologistAgent[0]);
-                        refresh.setConversationId("env-request");
-                        refresh.setContent(newPos.x + "," + newPos.y);
-                        send(refresh);
+            // FIXED: Check for Wumpus in the environment message
+            // The Speleologist converts "Wumpus" to phrases like "I see glowing eyes in the dark"
+            if (newEnvState.toLowerCase().contains("glowing eyes") ||
+                    newEnvState.toLowerCase().contains("wumpus") ||
+                    newEnvState.toLowerCase().contains("dark eyes") ||
+                    newEnvState.toLowerCase().contains("terrible smell")) {
 
-                        ACLMessage freshReply = blockingReceive(MessageTemplate.and(
-                                MessageTemplate.MatchPerformative(ACLMessage.INFORM),
-                                MessageTemplate.MatchConversationId("env-request")
-                        ), 3000);
+                System.out.println("Navigator: Wumpus detected! Attempting to shoot...");
 
-                        if (freshReply != null) {
-                            environmentState = freshReply.getContent();
-                            System.out.println("Navigator: Refreshed env state: " + environmentState);
-                        } else {
-                            environmentState = "";
-                        }
+                ACLMessage shootMsg = new ACLMessage(ACLMessage.REQUEST);
+                shootMsg.setConversationId("shoot-request");
+                shootMsg.setContent("shoot-request");
+                shootMsg.addReceiver(speleologistAgent[0]);
+                send(shootMsg);
 
-                        currentAgentPosition.add(newPos);
-                        System.out.println("Wumpus shot confirmed. Continuing...");
-                        System.out.println("Navigator: Step " + direction + " to (" + newPos.x + ", " + newPos.y + ")");
-                    }
+                System.out.println("Navigator: Shoot message sent to Speleologist.");
 
+                ACLMessage shootReply = blockingReceive(
+                        MessageTemplate.MatchConversationId("shoot-request"), 10000);
+
+                if (shootReply == null) {
+                    System.out.println("Navigator: No shoot response - assuming death. Restarting...");
+                    deadCells.add(newPos);
+                    sendDeadCellsToSpeleologist();
+                    restart();
+                    return;
                 }
-            } else {
-                currentAgentPosition.add(newPos);
-                environmentState = newEnvState;
-                System.out.println("Navigator: Step " + direction + " to (" + newPos.x + ", " + newPos.y + ")");
+
+                System.out.println("Navigator: Shoot response: " + shootReply.getContent());
+
+                if (shootReply.getPerformative() == ACLMessage.FAILURE) {
+                    System.out.println("Navigator: Shot failed - Speleologist died. Restarting...");
+                    deadCells.add(newPos);
+                    sendDeadCellsToSpeleologist();
+                    restart();
+                    return;
+                }
+
+                System.out.println("Navigator: Shot successful! Refreshing environment...");
+                // Refresh environment state after successful shot
+                ACLMessage refresh = new ACLMessage(ACLMessage.REQUEST);
+                refresh.addReceiver(speleologistAgent[0]);
+                refresh.setConversationId("env-request");
+                refresh.setContent(newPos.x + "," + newPos.y);
+                send(refresh);
+
+                ACLMessage freshReply = blockingReceive(MessageTemplate.and(
+                        MessageTemplate.MatchPerformative(ACLMessage.INFORM),
+                        MessageTemplate.MatchConversationId("env-request")
+                ), 3000);
+
+                if (freshReply != null) {
+                    newEnvState = freshReply.getContent();
+                    System.out.println("Navigator: Refreshed env state: " + newEnvState);
+                } else {
+                    newEnvState = "";
+                }
             }
+
+            // Check for Pit after Wumpus handling
+            if (newEnvState.toLowerCase().contains("pit") ||
+                    newEnvState.toLowerCase().contains("wind") ||
+                    newEnvState.toLowerCase().contains("breeze")) {
+                System.out.println("Navigator: Pit detected! Died at: (" + newPos.x + ", " + newPos.y + ")");
+                deadCells.add(newPos);
+                sendDeadCellsToSpeleologist();
+                restart();
+                return;
+            }
+
+            // If we reach here, the move was successful
+            currentAgentPosition.add(newPos);
+            environmentState = newEnvState;
+            System.out.println("Navigator: Step " + direction + " to (" + newPos.x + ", " + newPos.y + ")");
+
         } else {
             System.out.println("Navigator: Invalid move direction.");
         }
